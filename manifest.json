@@ -2,7 +2,7 @@
   "name": "AI Art Gallery",
   "short_name": "AI Art",
   "description": "Endless stream of AI-generated artwork. SDXL + FLUX, new art every 2 hours.",
-  "start_url": "/",
+  "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#0a0a0f",
   "theme_color": "#0a0a0f",
