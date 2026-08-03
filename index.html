@@ -59,11 +59,23 @@ body::before {
   pointer-events: none;
   z-index: 0;
 }
+  /* Film grain overlay */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  opacity: 0.035;
+  pointer-events: none;
+  z-index: 999;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+}
 
 /* ─── Header ──────────────────────────────────────────────────────────── */
 .header {
   position: sticky;
-  top: 20;
+  top: 0;
   z-index: 100;
   background: rgba(10, 10, 15, 0.85);
   backdrop-filter: blur(20px) saturate(180%);
@@ -92,6 +104,60 @@ body::before {
 }
 
 .blog-title span {
+  color: var(--accent);
+}
+
+.blog-hero {
+  max-width: 680px;
+  margin: 40px auto 30px auto;
+  text-align: center;
+  padding: 0 20px;
+}
+
+.blog-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent2), var(--accent));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  color: #fff;
+  margin-bottom: 16px;
+  box-shadow: 0 0 30px rgba(199, 125, 255, 0.3);
+}
+
+.blog-tagline {
+  font-family: var(--font-display);
+  font-size: 1.8rem;
+  font-weight: 500;
+  font-style: italic;
+  margin-bottom: 10px;
+  line-height: 1.3;
+}
+
+.blog-description {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+  margin-bottom: 16px;
+}
+
+.blog-meta-links {
+  font-size: 0.75rem;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.blog-meta-links a {
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.blog-meta-links a:hover {
   color: var(--accent);
 }
 
@@ -140,13 +206,29 @@ body::before {
 }
 
 .grid {
-  columns: 2;
-  column-gap: 20px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 24px;
 }
 
-@media (max-width: 1200px) { .grid { columns: 3; } }
-@media (max-width: 800px)  { .grid { columns: 2; column-gap: 12px; } }
-@media (max-width: 500px)  { .grid { columns: 1; } }
+.card:first-child {
+  grid-column: 1 / -1;
+  max-width: 800px;
+  margin: 0 auto 20px auto;
+}
+
+.card:first-child .card-caption-inline {
+  font-size: 1.15rem;
+  font-weight: 500;
+  color: #fff;
+}
+
+@media (max-width: 600px) {
+  .grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+}
 
 /* ─── Card ────────────────────────────────────────────────────────────── */
 .card {
@@ -188,39 +270,18 @@ body::before {
   filter: brightness(1.08);
 }
 
-/* Overlay on hover */
-.card-overlay {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    to top,
-    rgba(10, 10, 15, 0.92) 0%,
-    rgba(10, 10, 15, 0.4) 40%,
-    transparent 100%
-  );
-  opacity: 0;
-  transition: opacity 0.35s ease;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  padding: 20px;
+.card-body {
+  padding: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-.card:hover .card-overlay {
-  opacity: 1;
-}
-
-.card-caption {
-  font-size: 0.9rem;
+.card-caption-inline {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 0.95rem;
   line-height: 1.5;
-  color: #fff;
-  margin-bottom: 10px;
-  font-weight: 400;
-  text-shadow: 0 1px 4px rgba(0,0,0,0.6);
-  display: -webkit-box;
-  -webkit-line-clamp: 4;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  color: var(--text);
+  margin-bottom: 12px;
 }
 
 .card-tags {
@@ -330,7 +391,7 @@ body::before {
 /* ─── Toast notification ──────────────────────────────────────────────── */
 .toast {
   position: fixed;
-  bottom: 24px;
+  bottom: 60px;
   left: 50%;
   transform: translateX(-50%) translateY(120px);
   background: var(--surface);
@@ -356,19 +417,21 @@ body::before {
 /* ─── Generation Banner ───────────────────────────────────────────────── */
 .gen-banner {
   position: fixed;
-  bottom: 0;
+  bottom: 0; /* Changed from top: 0 */
   left: 0;
   right: 0;
   z-index: 150;
   background: linear-gradient(135deg, #5b21b6, #7b2ff7);
   color: #fff;
   text-align: center;
-  padding: 10px 24px;
+  padding: 12px 24px;
   font-size: 0.85rem;
   font-weight: 500;
   letter-spacing: 0.02em;
-  transform: translateY(-100%);
+  transform: translateY(100%); /* Changed from -100% to slide up from bottom */
   transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.6); /* Adds drop shadow above banner */
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .gen-banner.show {
@@ -524,6 +587,18 @@ body::before {
   </div>
 </header>
 
+<!-- Blog Editorial Hero Header -->
+<section class="blog-hero">
+  <div class="blog-avatar">∞</div>
+  <h2 class="blog-tagline">An infinite, autonomous stream of machine dreams.</h2>
+  <p class="blog-description">
+    Generated frequently using SDXL local models & FLUX cloud pipelines. Archived in real-time.
+  </p>
+  <div class="blog-meta-links">
+    <a href="#about">About Archive</a> • <a href="#rss">RSS Feed</a> • <span id="liveStatus">● Streaming live</span>
+  </div>
+</section>
+  
 <!-- Gallery -->
 <main class="gallery" id="gallery">
   <div class="grid" id="grid"></div>
@@ -604,16 +679,16 @@ function createCard(img, animate = false) {
   card.innerHTML = `
     <div class="card-image-wrap">
       <img src="${API_BASE + img.url}" alt="${img.caption || ''}">
-      <div class="card-overlay">
-        <p class="card-caption">${img.caption || ''}</p>
-        <div class="card-tags">
-          ${(img.hashtags || []).map(t => `<span class="card-tag">${t}</span>`).join('')}
-        </div>
+    </div>
+    <div class="card-body">
+      <p class="card-caption-inline">"${img.caption || 'Untitled creation'}"</p>
+      <div class="card-tags">
+        ${(img.hashtags || []).map(t => `<span class="card-tag">#${t}</span>`).join('')}
       </div>
     </div>
     <div class="card-info">
-      <span class="card-seed">${img.seed_name || 'Artwork'}</span>
-      <span class="card-date">${new Date(img.created).toLocaleDateString('en-US', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' })}</span>
+      <span class="card-seed">⚡ ${img.seed_name || 'Artwork'}</span>
+      <span class="card-date">${new Date(img.created).toLocaleDateString('en-US', { month:'short', day:'numeric' })}</span>
     </div>
   `;
 
