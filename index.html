@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Art Gallery — Endless Stream</title>
+
+<!-- PWA -->
+<link rel="manifest" href="./manifest.json">
+<meta name="theme-color" content="#0a0a0f">
+<meta name="description" content="AI Art Gallery — an endless stream of AI-generated artwork. SDXL local + FLUX cloud, new art every 2 hours.">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+<style>
+/* ─── Reset & Base ─────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0a0a0f;
+  --surface: #12121a;
+  --surface-hover: #1a1a26;
+  --text: #e0dce8;
+  --text-muted: #7a7688;
+  --accent: #c77dff;
+  --accent2: #7b2ff7;
+  --accent-glow: rgba(199, 125, 255, 0.15);
+  --border: #1e1e2e;
+  --radius: 12px;
+  --radius-lg: 20px;
+  --shadow: 0 4px 24px rgba(0,0,0,0.5);
+  --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-display: 'Playfair Display', Georgia, serif;
+}
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Playfair+Display:ital,wght@0,500;0,700;1,500&display=swap');
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Background ambient texture */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 20% 20%, rgba(123, 47, 247, 0.04) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 60%, rgba(199, 125, 255, 0.03) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 90%, rgba(123, 47, 247, 0.04) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ─── Header ──────────────────────────────────────────────────────────── */
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(10, 10, 15, 0.85);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border-bottom: 1px solid var(--border);
+  padding: 16px 24px;
+}
+
+.header-inner {
+  max-width: 1400px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.blog-title {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 700;
+  font-style: italic;
+  color: var(--text);
+  letter-spacing: -0.02em;
+}
+
+.blog-title span {
+  color: var(--accent);
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  transition: all 0.3s ease;
+}
+
+.status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #555;
+  transition: background 0.3s ease;
+}
+
+.status-dot.idle { background: #4ade80; }
+.status-dot.generating { background: #f59e0b; animation: pulse-dot 1.5s infinite; }
+.status-dot.error { background: #ef4444; }
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4); }
+  50% { opacity: 0.6; box-shadow: 0 0 0 8px rgba(245, 158, 11, 0); }
+}
+
+.counter {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+/* ─── Grid ────────────────────────────────────────────────────────────── */
+.gallery {
+  position: relative;
+  z-index: 1;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 24px 16px 80px;
+}
+
+.grid {
+  columns: 4;
+  column-gap: 20px;
+}
+
+@media (max-width: 1200px) { .grid { columns: 3; } }
+@media (max-width: 800px)  { .grid { columns: 2; column-gap: 12px; } }
+@media (max-width: 500px)  { .grid { columns: 1; } }
+
+/* ─── Card ────────────────────────────────────────────────────────────── */
+.card {
+  break-inside: avoid;
+  margin-bottom: 20px;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  transition: transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+              box-shadow 0.35s ease,
+              border-color 0.35s ease;
+  cursor: pointer;
+  position: relative;
+}
+
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 16px 48px rgba(0,0,0,0.5), 0 0 0 1px var(--accent-glow);
+  border-color: rgba(199, 125, 255, 0.3);
+}
+
+.card-image-wrap {
+  position: relative;
+  overflow: hidden;
+  background: #0d0d14;
+}
+
+.card-image-wrap img {
+  display: block;
+  width: 100%;
+  height: auto;
+  transition: transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+              filter 0.5s ease;
+}
+
+.card:hover .card-image-wrap img {
+  transform: scale(1.03);
+  filter: brightness(1.08);
+}
+
+/* Overlay on hover */
+.card-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to top,
+    rgba(10, 10, 15, 0.92) 0%,
+    rgba(10, 10, 15, 0.4) 40%,
+    transparent 100%
+  );
+  opacity: 0;
+  transition: opacity 0.35s ease;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 20px;
+}
+
+.card:hover .card-overlay {
+  opacity: 1;
+}
+
+.card-caption {
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: #fff;
+  margin-bottom: 10px;
+  font-weight: 400;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.6);
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.card-tag {
+  font-size: 0.7rem;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.1);
+  color: rgba(255,255,255,0.8);
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255,255,255,0.08);
+  transition: all 0.2s ease;
+}
+
+.card-tag:hover {
+  background: rgba(199, 125, 255, 0.25);
+  border-color: rgba(199, 125, 255, 0.4);
+  color: #fff;
+}
+
+/* Card footer (visible always, below image) */
+.card-info {
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.card-seed {
+  font-weight: 500;
+  color: var(--accent);
+  font-size: 0.72rem;
+  letter-spacing: 0.02em;
+}
+
+.card-date {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+/* ─── Empty State ─────────────────────────────────────────────────────── */
+.empty-state {
+  text-align: center;
+  padding: 100px 24px;
+  color: var(--text-muted);
+}
+
+.empty-state h2 {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  font-style: italic;
+  color: var(--text);
+  margin-bottom: 12px;
+}
+
+.empty-state p {
+  font-size: 1rem;
+  max-width: 400px;
+  margin: 0 auto;
+  line-height: 1.6;
+}
+
+.empty-state .glow-text {
+  color: var(--accent);
+}
+
+/* ─── Loading shimmer ─────────────────────────────────────────────────── */
+@keyframes shimmer {
+  0% { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+
+.card-skeleton {
+  break-inside: avoid;
+  margin-bottom: 20px;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.card-skeleton .skeleton-img {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  background: linear-gradient(90deg, var(--surface) 25%, var(--surface-hover) 50%, var(--surface) 75%);
+  background-size: 800px 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+.card-skeleton .skeleton-line {
+  height: 14px;
+  margin: 12px 16px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, var(--surface) 25%, var(--surface-hover) 50%, var(--surface) 75%);
+  background-size: 800px 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* ─── Toast notification ──────────────────────────────────────────────── */
+.toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(120px);
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 12px 24px;
+  font-size: 0.85rem;
+  color: var(--text);
+  z-index: 200;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.toast.show {
+  transform: translateX(-50%) translateY(0);
+}
+
+.toast .toast-emoji { font-size: 1.2rem; }
+
+/* ─── Generation Banner ───────────────────────────────────────────────── */
+.gen-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 150;
+  background: linear-gradient(135deg, #5b21b6, #7b2ff7);
+  color: #fff;
+  text-align: center;
+  padding: 10px 24px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  transform: translateY(-100%);
+  transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.gen-banner.show {
+  transform: translateY(0);
+}
+
+.gen-banner .spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  margin-right: 8px;
+  vertical-align: middle;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ─── Footer ──────────────────────────────────────────────────────────── */
+.footer {
+  text-align: center;
+  padding: 60px 24px;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  border-top: 1px solid var(--border);
+  margin-top: 40px;
+}
+
+.footer .infinite-symbol {
+  font-size: 1.5rem;
+  display: block;
+  margin-bottom: 8px;
+  color: var(--accent);
+}
+
+.version-badge {
+  display: inline-block;
+  margin-top: 10px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  opacity: 0.4;
+  letter-spacing: 0.12em;
+  user-select: none;
+}
+
+/* ─── Scrollbar ───────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+
+/* ─── Lightbox / Fullscreen ───────────────────────────────────────────── */
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: rgba(0,0,0,0.94);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+  backdrop-filter: blur(8px);
+}
+
+.lightbox.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.lightbox-content {
+  max-width: 90vw;
+  max-height: 85vh;
+  position: relative;
+}
+
+.lightbox-content img {
+  max-width: 90vw;
+  max-height: 80vh;
+  border-radius: var(--radius-lg);
+  box-shadow: 0 24px 80px rgba(0,0,0,0.6);
+}
+
+.lightbox-info {
+  margin-top: 16px;
+  text-align: center;
+  color: var(--text);
+  max-width: 600px;
+}
+
+.lightbox-info .lightbox-caption {
+  font-size: 1rem;
+  line-height: 1.5;
+  margin-bottom: 8px;
+}
+
+.lightbox-info .lightbox-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+}
+
+.lightbox-close {
+  position: absolute;
+  top: 16px;
+  right: 24px;
+  font-size: 2rem;
+  color: #fff;
+  background: none;
+  border: none;
+  cursor: pointer;
+  z-index: 301;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: background 0.2s;
+}
+
+.lightbox-close:hover {
+  background: rgba(255,255,255,0.1);
+}
+</style>
+</head>
+<body>
+
+<!-- Generation banner -->
+<div class="gen-banner" id="genBanner">
+  <span class="spinner"></span> AI is creating new artwork...
+</div>
+
+<!-- Header -->
+<header class="header">
+  <div class="header-inner">
+    <h1 class="blog-title">&#x221E; <span>AI</span> Art Gallery</h1>
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+      <span class="status-pill" id="statusPill">
+        <span class="status-dot idle" id="statusDot"></span>
+        <span id="statusText">idle</span>
+      </span>
+      <span class="status-pill" id="sdxlTimer" style="font-size:0.72rem;">SDXL —</span>
+      <span class="status-pill" id="fluxTimer" style="font-size:0.72rem;">FLUX —</span>
+      <span class="counter" id="imageCount">0 artworks</span>
+    </div>
+  </div>
+</header>
+
+<!-- Gallery -->
+<main class="gallery" id="gallery">
+  <div class="grid" id="grid"></div>
+</main>
+
+<!-- Lightbox -->
+<div class="lightbox" id="lightbox">
+  <button class="lightbox-close" id="lightboxClose">&times;</button>
+  <div class="lightbox-content">
+    <img id="lightboxImg" src="" alt="">
+    <div class="lightbox-info">
+      <p class="lightbox-caption" id="lightboxCaption"></p>
+      <div class="lightbox-tags" id="lightboxTags"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast">
+  <span class="toast-emoji">🎨</span>
+  <span id="toastMsg">New artwork has arrived!</span>
+</div>
+
+<!-- Footer -->
+<footer class="footer" id="footer">
+  <span class="infinite-symbol">&#x221E;</span>
+  <p>The stream never ends. New art every 120 minutes.</p>
+  <span class="version-badge">v0.5.1</span>
+</footer>
+
+<script>
+/* ─── CONFIG ───────────────────────────────────────────────────────────── */
+const API_BASE = 'https://vics-imac-1.tail37b4f2.ts.net';
+/* ─── State ───────────────────────────────────────────────────────────── */
+let images = [];
+let nextInSeconds = 0;
+
+/* ─── DOM refs ────────────────────────────────────────────────────────── */
+const grid = document.getElementById('grid');
+const statusDot = document.getElementById('statusDot');
+const statusText = document.getElementById('statusText');
+const imageCountEl = document.getElementById('imageCount');
+const genBanner = document.getElementById('genBanner');
+const toast = document.getElementById('toast');
+const toastMsg = document.getElementById('toastMsg');
+const lightbox = document.getElementById('lightbox');
+const lightboxImg = document.getElementById('lightboxImg');
+const lightboxCaption = document.getElementById('lightboxCaption');
+const lightboxTags = document.getElementById('lightboxTags');
+const sdxlTimer = document.getElementById('sdxlTimer');
+const fluxTimer = document.getElementById('fluxTimer');
+
+/* ─── Toast ───────────────────────────────────────────────────────────── */
+let toastTimeout;
+function showToast(msg, duration = 4000) {
+  toastMsg.textContent = msg;
+  toast.classList.add('show');
+  clearTimeout(toastTimeout);
+  toastTimeout = setTimeout(() => toast.classList.remove('show'), duration);
+}
+
+/* ─── Format time ─────────────────────────────────────────────────────── */
+function formatCountdown(seconds) {
+  if (seconds <= 0) return 'any moment...';
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
+}
+
+/* ─── Render image card ───────────────────────────────────────────────── */
+function createCard(img, animate = false) {
+  const card = document.createElement('div');
+  card.className = 'card';
+  if (animate) card.style.opacity = '0';
+
+  card.innerHTML = `
+    <div class="card-image-wrap">
+      <img src="${API_BASE + img.url}" alt="${img.caption || ''}">
+      <div class="card-overlay">
+        <p class="card-caption">${img.caption || ''}</p>
+        <div class="card-tags">
+          ${(img.hashtags || []).map(t => `<span class="card-tag">${t}</span>`).join('')}
+        </div>
+      </div>
+    </div>
+    <div class="card-info">
+      <span class="card-seed">${img.seed_name || 'Artwork'}</span>
+      <span class="card-date">${new Date(img.created).toLocaleDateString('en-US', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' })}</span>
+    </div>
+  `;
+
+  card.addEventListener('click', (e) => {
+    if (e.target.closest('.card-tag')) return;
+    lightboxImg.src = API_BASE + img.url;
+    lightboxCaption.textContent = img.caption || '';
+    lightboxTags.innerHTML = (img.hashtags || []).map(t => `<span class="card-tag">${t}</span>`).join('');
+    lightbox.classList.add('open');
+  });
+
+  if (animate) {
+    requestAnimationFrame(() => {
+      card.style.transition = 'opacity 0.5s ease, transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+      card.style.opacity = '1';
+    });
+  }
+
+  return card;
+}
+
+/* ─── Render full grid ────────────────────────────────────────────────── */
+function renderGrid() {
+  grid.innerHTML = '';
+  if (images.length === 0) {
+    grid.parentElement.innerHTML = `
+      <div class="empty-state">
+        <h2>The canvas is being prepared</h2>
+        <p>The AI is about to create the first artwork. <span class="glow-text">${formatCountdown(nextInSeconds)}</span> until the first piece arrives.</p>
+      </div>
+      <footer class="footer">
+        <span class="infinite-symbol">∞</span>
+        <p>The stream never ends. New art every 120 minutes.</p>
+      </footer>
+    `;
+    return;
+  }
+  images.forEach(img => grid.appendChild(createCard(img)));
+  imageCountEl.textContent = `${images.length} artwork${images.length !== 1 ? 's' : ''}`;
+}
+
+/* ─── Update status pill ───────────────────────────────────────────────── */
+function updateStatus(data) {
+  const status = data.status || 'idle';
+  const message = data.message;
+  statusDot.className = 'status-dot ' + (status === 'generating' ? 'generating' : 'idle');
+  statusText.textContent = message || status;
+  nextInSeconds = data.next_in_seconds || 0;
+
+  if (status === 'generating') {
+    genBanner.classList.add('show');
+  } else {
+    genBanner.classList.remove('show');
+  }
+
+  const sdxl_rem = data.sdxl_in_seconds || (data.sdxl && data.sdxl.in_seconds) || 0;
+  const flux_rem = data.flux_in_seconds || (data.flux && data.flux.in_seconds) || 0;
+  sdxlTimer.textContent = 'SDXL ' + (sdxl_rem > 0 ? formatCountdown(sdxl_rem) : '—');
+  fluxTimer.textContent = 'FLUX ' + (flux_rem > 0 ? formatCountdown(flux_rem) : '—');
+}
+
+/* ─── Counter tick ────────────────────────────────────────────────────────── */
+setInterval(() => {
+  if (nextInSeconds > 0 && document.querySelector('.glow-text')) {
+    nextInSeconds--;
+    const el = document.querySelector('.glow-text');
+    if (el) el.textContent = formatCountdown(nextInSeconds);
+  }
+}, 1000);
+
+/* ─── Load initial data ───────────────────────────────────────────────────── */
+async function init() {
+  try {
+    const [imgRes, statusRes] = await Promise.all([
+      fetch(API_BASE + '/api/images'),
+      fetch(API_BASE + '/api/status')
+    ]);
+    images = await imgRes.json();
+    const statusData = await statusRes.json();
+
+    renderGrid();
+
+    if (statusData.status === 'generating') {
+      updateStatus({status: 'generating', message: 'generating...', sdxl_in_seconds: 0, flux_in_seconds: 0});
+    } else {
+      updateStatus(statusData);
+    }
+  } catch (e) {
+    console.error('init error:', e);
+  }
+}
+
+/* ─── SSE for live updates ────────────────────────────────────────────────── */
+function connectSSE() {
+  const es = new EventSource(API_BASE + '/api/stream');
+
+  es.addEventListener('new_image', (e) => {
+    const data = JSON.parse(e.data).data;
+    const existing = images.find(i => i.filename === data.filename);
+    if (!existing) {
+      images.unshift(data);
+      const card = createCard(data, true);
+      grid.insertBefore(card, grid.firstChild);
+      imageCountEl.textContent = `${images.length} artwork${images.length !== 1 ? 's' : ''}`;
+
+      if (grid.parentElement.querySelector('.empty-state')) {
+        renderGrid();
+      }
+
+      showToast(`🎨 New artwork: ${data.seed_name || 'Untitled'}`);
+    }
+  });
+
+  es.addEventListener('status', (e) => {
+    const data = JSON.parse(e.data).data;
+    updateStatus(data);
+  });
+
+  es.addEventListener('ping', () => {});
+
+  es.onerror = () => {
+    setTimeout(connectSSE, 5000);
+  };
+}
+
+/* ─── Lightbox close ──────────────────────────────────────────────────── */
+lightbox.addEventListener('click', (e) => {
+  if (e.target === lightbox || e.target.id === 'lightboxClose') {
+    lightbox.classList.remove('open');
+  }
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') lightbox.classList.remove('open');
+});
+
+/* ─── Infinite scroll → lazy load more if paginated ───────────────────── */
+/* (All images loaded at once since we expect < thousands. Simple.) */
+
+/* ─── Boot ────────────────────────────────────────────────────────────── */
+init();
+connectSSE();
+/* ─── PWA Service Worker ─────────────────────────────────────────→ lives in sw.js ── */
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js').catch(() => {});
+}
+</script>
+</body>
+</html>
