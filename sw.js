@@ -1,5 +1,5 @@
 // Service Worker — AI Art Gallery v0.5.0
-const CACHE = 'ai-art-gallery-v0.5.1';
+const CACHE = 'ai-art-gallery-v0.5.2';
 
 self.addEventListener('install', (e) => {
   self.skipWaiting();
